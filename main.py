@@ -6,6 +6,8 @@ from bs4 import BeautifulSoup
 from io import BytesIO
 import re
 
+from validations import validated_data
+
 # --- CONFIGURAÇÕES ---
 BASE_URL = "https://dadosabertos.ans.gov.br/FTP/PDA/demonstracoes_contabeis/"
 CADASTRO_URL = "https://dadosabertos.ans.gov.br/FTP/PDA/operadoras_de_plano_de_saude_ativas/"
@@ -24,15 +26,17 @@ def get_mapeamento_operadoras():
     col_reg = next(c for c in df_cad.columns if 'REGISTRO' in c)
     col_cnpj = next(c for c in df_cad.columns if 'CNPJ' in c)
     col_razao = next(c for c in df_cad.columns if 'RAZAO' in c)
+    col_mod = next(c for c in df_cad.columns if 'MODALIDADE' in c)
+    col_uf = next(c for c in df_cad.columns if 'UF' in c)
 
     # Padroniza nomes para o merge funcionar
-    df_cad = df_cad[[col_reg, col_cnpj, col_razao]].copy()
-    df_cad.rename(columns={col_reg: 'REGISTRO_ANS', col_cnpj: 'CNPJ', col_razao: 'RazaoSocial'}, inplace=True)
+    df_cad = df_cad[[col_reg, col_cnpj, col_razao, col_mod, col_uf]].copy()
+    df_cad.rename(columns={col_reg: 'RegistroANS', col_cnpj: 'CNPJ', col_razao: 'RazaoSocial', col_mod: 'Modalidade', col_uf: 'UF'}, inplace=True)
 
-    df_cad['REGISTRO_ANS'] = df_cad['REGISTRO_ANS'].astype(str).str.strip()
+    df_cad['RegistroANS'] = df_cad['RegistroANS'].astype(str).str.strip()
     df_cad['CNPJ'] = df_cad['CNPJ'].astype(str).str.strip()
 
-    
+    print(df_cad.head())
     return df_cad
 
 def download_files(arquivos_alvo, mapa):
@@ -56,26 +60,27 @@ def download_files(arquivos_alvo, mapa):
                     col_valor_inicial = next((c for c in df.columns if 'SALDO_INICIAL' in c), None)
                     col_valor_final = next((c for c in df.columns if 'SALDO_FINAL' in c), None)
                     
+
                     if 'DESCRICAO' in df.columns and col_reg and col_valor_inicial and col_valor_final:
                         # Filtro Regex
                         mask = df['DESCRICAO'].astype(str).str.contains(padrao, case=False, regex=True, na=False)
                         df_filtrado = df[mask].copy()
+                        
 
                         df_filtrado[col_reg] = df_filtrado[col_reg].astype(str).str.strip()
-                        df_filtrado.rename(columns={col_reg: 'REGISTRO_ANS'}, inplace=True)
+                        df_filtrado.rename(columns={col_reg: 'RegistroANS'}, inplace=True)
                         
                         # Merge com cadastro
-                        temp_df = df_filtrado.merge(mapa, on='REGISTRO_ANS', how='left')
+                        #df_filtrado = df_filtrado.merge(mapa, on='REGISTRO_ANS', how='left')
                         
                         # Cálculo (Saldo Inicial - Saldo Final geralmente indica despesa)
-                        temp_df['ValorDespesas'] = pd.to_numeric(temp_df[col_valor_inicial], errors='coerce').fillna(0) - \
-                                                 pd.to_numeric(temp_df[col_valor_final], errors='coerce').fillna(0)
+                        df_filtrado['ValorDespesas'] = pd.to_numeric(df_filtrado[col_valor_final], errors='coerce').fillna(0) - pd.to_numeric(df_filtrado[col_valor_inicial], errors='coerce').fillna(0)
 
-                        temp_df = temp_df[temp_df['ValorDespesas'] != 0].copy()
-                        temp_df['Ano'] = tri_path.split('/')[0]
-                        temp_df['Trimestre'] = tri_path.split('/')[-1].replace('.zip', '')
+                        df_filtrado = df_filtrado[df_filtrado['ValorDespesas'] != 0].copy()
+                        df_filtrado['Ano'] = tri_path.split('/')[0]
+                        df_filtrado['Trimestre'] = tri_path.split('/')[-1].replace('.zip', '')
 
-                        df_lista.append(temp_df.dropna(subset=['CNPJ']))
+                        df_lista.append(df_filtrado)
         except Exception as e:
             print(f"Erro ao processar {tri_path}: {e}")
 
@@ -110,12 +115,60 @@ def get_demonstracoes_contabeis():
 
     if df_lista:
         df_final = pd.concat(df_lista, ignore_index=True)
+        df_final = df_final.merge(mapa, on='RegistroANS', how='left') #join pelo registro_ans ja que nao tem cnpj
+
         df_final = df_final.groupby(['CNPJ', 'RazaoSocial', 'Ano', 'Trimestre'], as_index=False)['ValorDespesas'].sum()
+        
         
         df_final.to_csv(FINAL_CSV, index=False, sep=';', encoding='utf-8')
         print(f"\n--- SUCESSO ---\nArquivo {FINAL_CSV} gerado.")
     else:
         print("\nErro: Nenhum dado processado.")
 
+
+
+
+
+def add_new_columns():
+    df_despesas = pd.read_csv(FINAL_CSV, sep=';', engine='python', encoding='utf-8')
+    df_validado = validated_data(df_despesas)
+    
+    operadoras = get_mapeamento_operadoras()
+
+    df_validado['CNPJ'] = df_validado['CNPJ'].astype(str).str.strip()
+
+    # colunas que quero do df de operadoras
+    colunas_interesse = ['CNPJ', 'RegistroANS', 'Modalidade', 'UF'] 
+    operadoras_filtrado = operadoras[colunas_interesse]
+
+    df_validado = df_validado.merge(operadoras_filtrado, on='CNPJ', how='left')
+
+    # outras colunas inclusas no group by para que todas apareçam no csv final
+    # faz o calculo de total por operadora/UF, calcula a media de cada trimestre e desvio padrao
+    df_validado = df_validado.groupby(['CNPJ', 'RegistroANS', 'RazaoSocial', 'Modalidade', 'UF'], as_index=False)['ValorDespesas'].agg(
+        Total_Despesas='sum',
+        Media_Trimestral='mean',
+        Desvio_Padrao='std'
+    )
+    
+    df_validado = df_validado.sort_values(by='Total_Despesas', ascending=False)
+
+    df_validado.to_csv("despesas_validado.csv", index=False, sep=';', encoding='utf-8')
+    print(f"\n--- SUCESSO ---\nArquivo despesas_validado.csv gerado.")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 if __name__ == "__main__":
     get_demonstracoes_contabeis()
+    add_new_columns()

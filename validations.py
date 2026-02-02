@@ -2,8 +2,6 @@ import re
 from turtle import pd
 import requests
 
-from main import get_cadastro_operadoras
-
 
 CONSOLIDATED_CSV = "consolidado_despesas.csv"
 
@@ -38,14 +36,9 @@ def validar_cnpj(cnpj: str) -> bool:
     return cnpj[-2:] == dig1 + dig2
 
 
-
-def validated_data():
+# df consolidado
+def validated_data(df):
     
-    df = pd.read_csv(
-        CONSOLIDATED_CSV,
-        sep=';',
-        encoding='utf-8'
-    )
      # filtro de cnpj valido
     df['StatusCNPJ'] = df['CNPJ'].apply(validar_cnpj).map({True: 'Válido', False: 'Inválido'})
     df = df[df['ValorDespesas'] > 0].copy() # mantêm só os valores positivos
