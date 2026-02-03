@@ -1,4 +1,4 @@
-#!/home/leticia/Documentos/teste_intcare_gemini/venv/bin/python3
+#!/home/leticia/Documentos/teste_intuitivecare/venv/bin/python
 # -*- coding: utf-8 -*-
 import re
 import sys

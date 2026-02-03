@@ -1,0 +1,9 @@
+requests
+bs4
+sqlalchemy
+psycopg2-binary
+python-dotenv
+pandas
+
+
+# pip install -r requirements.txt

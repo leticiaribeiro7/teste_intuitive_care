@@ -7,11 +7,16 @@ from io import BytesIO
 import re
 
 from validations import validated_data
+from db_setup import engine, create_database, setup_database
+from db_import import import_operadoras, import_despesas_consolidadas, import_despesas_agregadas
 
 # --- CONFIGURAÇÕES ---
+
 BASE_URL = "https://dadosabertos.ans.gov.br/FTP/PDA/demonstracoes_contabeis/"
 CADASTRO_URL = "https://dadosabertos.ans.gov.br/FTP/PDA/operadoras_de_plano_de_saude_ativas/"
 FINAL_CSV = "consolidado_despesas.csv"
+
+
 
 def get_mapeamento_operadoras():
     print("-> Obtendo base cadastral...")
@@ -39,7 +44,7 @@ def get_mapeamento_operadoras():
     print(df_cad.head())
     return df_cad
 
-def download_files(arquivos_alvo, mapa):
+def download_files(arquivos_alvo):
     df_lista = []
     padrao = r'despesas\s*com\s*eventos\s*/?\s*sinistros'
 
@@ -69,9 +74,7 @@ def download_files(arquivos_alvo, mapa):
 
                         df_filtrado[col_reg] = df_filtrado[col_reg].astype(str).str.strip()
                         df_filtrado.rename(columns={col_reg: 'RegistroANS'}, inplace=True)
-                        
-                        # Merge com cadastro
-                        #df_filtrado = df_filtrado.merge(mapa, on='REGISTRO_ANS', how='left')
+                    
                         
                         # Cálculo (Saldo Inicial - Saldo Final geralmente indica despesa)
                         df_filtrado['ValorDespesas'] = pd.to_numeric(df_filtrado[col_valor_final], errors='coerce').fillna(0) - pd.to_numeric(df_filtrado[col_valor_inicial], errors='coerce').fillna(0)
@@ -145,7 +148,7 @@ def add_new_columns():
 
     # outras colunas inclusas no group by para que todas apareçam no csv final
     # faz o calculo de total por operadora/UF, calcula a media de cada trimestre e desvio padrao
-    df_validado = df_validado.groupby(['CNPJ', 'RegistroANS', 'RazaoSocial', 'Modalidade', 'UF'], as_index=False)['ValorDespesas'].agg(
+    df_validado = df_validado.groupby(['RegistroANS',  'RazaoSocial', 'Modalidade', 'UF'], as_index=False)['ValorDespesas'].agg(
         Total_Despesas='sum',
         Media_Trimestral='mean',
         Desvio_Padrao='std'
@@ -153,14 +156,101 @@ def add_new_columns():
     
     df_validado = df_validado.sort_values(by='Total_Despesas', ascending=False)
 
-    df_validado.to_csv("despesas_validado.csv", index=False, sep=';', encoding='utf-8')
-    print(f"\n--- SUCESSO ---\nArquivo despesas_validado.csv gerado.")
+    df_validado.to_csv("despesas_agregadas.csv", index=False, sep=';', encoding='utf-8')
+    print(f"\n--- SUCESSO ---\nArquivo despesas_agregadas.csv gerado.")
 
 
 
 
+# def import_operadoras():
+#     """Importa o cadastro da ANS tratando os nomes de colunas e datas."""
+#     file = 'Relatorio_cadop.csv'
+#     if os.path.exists(file):
+#         print(f"Importando {file}...")
+#         df = pd.read_csv(file, sep=';', encoding='utf-8', dtype={'CNPJ': str}) # cnpj convertido pra str
 
+        
+        
+#         # Mapeamento do arquivo oficial para o seu Model
+#         mapping = {
+#             'REGISTRO_OPERADORA': 'registro_ans',
+#             'CNPJ': 'cnpj',
+#             'Razao_Social': 'razao_social',
+#             'Nome_Fantasia': 'nome_fantasia',
+#             'Modalidade': 'modalidade',
+#             'Logradouro': 'logradouro',
+#             'Numero': 'numero',
+#             'Complemento': 'complemento',
+#             'Bairro': 'bairro',
+#             'Cidade': 'cidade',
+#             'UF': 'uf',
+#             'CEP': 'cep',
+#             'DDD': 'ddd',
+#             'Telefone': 'telefone',
+#             'Fax': 'fax',
+#             'Endereco_eletronico': 'email',
+#             'Representante': 'representante',
+#             'Cargo_Representante': 'cargo_representante',
+#             'Regiao_de_Comercializacao': 'regiao_comercializacao',
+#             'Data_Registro_ANS': 'data_registro_ans'
+#         }
+#         df = df.rename(columns=mapping)
+#         df['data_registro_ans'] = pd.to_datetime(df['data_registro_ans'], errors='coerce')
+#         df = df.drop_duplicates(subset=['registro_ans'])
 
+#         df.columns = df.columns.str.lower()
+        
+#         df.to_sql('operadoras', engine, if_exists='append', index=False)
+#         print(f"{len(df)} registros inseridos em 'operadoras'.")
+#     else:
+#         print(f"Arquivo {file} não encontrado.")
+
+# def import_despesas_consolidadas():
+#     """Importa o arquivo de despesas brutas."""
+#     file = 'consolidado_despesas.csv'
+#     if os.path.exists(file):
+#         print(f"Importando {file}...")
+#         df = pd.read_csv(file, sep=';', encoding='utf-8', dtype={'CNPJ': str})
+
+#         mapping = {
+#             'CNPJ': 'cnpj',
+#             'RazaoSocial': 'razao_social',
+#             'Ano': 'ano',
+#             'Trimestre': 'trimestre',
+#             'ValorDespesas': 'valor_despesa'
+#         }
+        
+#         df = df.rename(columns=mapping)
+
+#         df.to_sql('despesas_consolidadas', engine, if_exists='append', index=False)
+#         print(f"{len(df)} registros inseridos em 'despesas_consolidadas'.")
+#     else:
+#         print(f"Arquivo {file} não encontrado.")
+
+# def import_despesas_agregadas():
+
+#     file = 'despesas_agregadas.csv'
+#     if os.path.exists(file):
+#         print(f"Importando {file}...")
+#         df = pd.read_csv(file, sep=';', encoding='utf-8', dtype={'CNPJ': str})
+
+#         mapping = {
+#             'UF': 'uf',
+#             'Modalidade': 'modalidade',
+#             'Razao_Social': 'razao_social',
+#             'RegistroANS': 'registro_ans',
+#             'Total_Despesas': 'total_despesas',
+#             'Media_Trimestral': 'media_trimestral',
+#             'Desvio_Padrao': 'desvio_padrao'
+#         }
+        
+#         df = df.rename(columns=mapping)
+
+        
+#         df.to_sql('despesas_agregadas', engine, if_exists='append', index=False)
+#         print(f"{len(df)} registros inseridos em 'despesas_agregadas'.")
+#     else:
+#         print(f"Arquivo {file} não encontrado.")
 
 
 
@@ -170,5 +260,10 @@ def add_new_columns():
 
 
 if __name__ == "__main__":
-    get_demonstracoes_contabeis()
-    add_new_columns()
+    #get_demonstracoes_contabeis()
+    #add_new_columns()
+    create_database()
+    setup_database()
+    import_operadoras()
+    import_despesas_consolidadas()
+    import_despesas_agregadas()
