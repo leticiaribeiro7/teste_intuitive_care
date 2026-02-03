@@ -10,7 +10,6 @@ def import_operadoras():
         df = pd.read_csv(file, sep=';', encoding='utf-8', dtype={'CNPJ': str}) # cnpj convertido pra str
 
         
-        
         # Mapeamento do arquivo oficial para o seu Model
         mapping = {
             'REGISTRO_OPERADORA': 'registro_ans',
@@ -57,7 +56,7 @@ def import_despesas_consolidadas():
             'RazaoSocial': 'razao_social',
             'Ano': 'ano',
             'Trimestre': 'trimestre',
-            'ValorDespesas': 'valor_despesa'
+            'ValorDespesas': 'valor_despesas'
         }
         
         df = df.rename(columns=mapping)
@@ -77,7 +76,7 @@ def import_despesas_agregadas():
         mapping = {
             'UF': 'uf',
             'Modalidade': 'modalidade',
-            'Razao_Social': 'razao_social',
+            'RazaoSocial': 'razao_social',
             'RegistroANS': 'registro_ans',
             'Total_Despesas': 'total_despesas',
             'Media_Trimestral': 'media_trimestral',

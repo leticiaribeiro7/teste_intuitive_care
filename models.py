@@ -37,6 +37,7 @@ class DespesaConsolidada(Base):
     ano = Column(Integer, nullable=False)
     trimestre = Column(Integer, nullable=False)
     valor_despesas = Column(Numeric(18, 2), nullable=False)
+    razao_social = Column(String(255), nullable=False)
 
 class DespesaAgregada(Base):
     __tablename__ = 'despesas_agregadas'
@@ -48,4 +49,4 @@ class DespesaAgregada(Base):
     uf = Column(CHAR(2), nullable=False)
     total_despesas = Column(Numeric(18, 2), nullable=False)
     media_trimestral = Column(Numeric(18, 2), nullable=False)
-    desvio_padrao = Column(Numeric(18, 2), nullable=False)
+    desvio_padrao = Column(Numeric(18, 2))

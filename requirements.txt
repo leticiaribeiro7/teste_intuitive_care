@@ -4,6 +4,8 @@ sqlalchemy
 psycopg2-binary
 python-dotenv
 pandas
-
+fastapi-cache2
+fastapi
+uvicorn
 
 # pip install -r requirements.txt
