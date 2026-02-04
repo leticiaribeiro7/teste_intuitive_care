@@ -4,7 +4,7 @@ from sqlalchemy import Column, String, Integer, Numeric, Date, ForeignKey, CHAR
 from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
-
+# ajustar colunas sql numericas
 class Operadora(Base):
     __tablename__ = 'operadoras'
     

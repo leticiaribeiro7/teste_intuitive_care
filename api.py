@@ -13,6 +13,9 @@ from fastapi_cache.decorator import cache
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
+from fastapi.middleware.cors import CORSMiddleware
+
+
 # Configuração do ciclo de vida do App
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -21,6 +24,16 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     yield
 
 app = FastAPI(title="ANS Data API", lifespan=lifespan)
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 # Dependência para abrir/fechar a sessão do banco em cada requisição
 def get_db():
@@ -42,7 +55,7 @@ def listar_operadoras(
     operadoras = db.query(Operadora).offset(offset).limit(limit).all()
     return {
         "data": operadoras, "total": db.query(Operadora).count(), "page": page, "limit": limit
-    } # para front end
+    }
 
 @app.get("/api/operadoras/{cnpj}")
 def detalhes_operadora(cnpj: str, db: Session = Depends(get_db)):
@@ -53,7 +66,6 @@ def detalhes_operadora(cnpj: str, db: Session = Depends(get_db)):
 
 @app.get("/api/operadoras/{cnpj}/despesas")
 def historico_despesas(cnpj: str, db: Session = Depends(get_db)):
-    # Aqui usamos o nome da coluna conforme o seu Model (valor_despesa)
     despesas = db.query(DespesaConsolidada).filter(DespesaConsolidada.cnpj == cnpj).all()
     if not despesas:
         raise HTTPException(status_code=404, detail="Nenhuma despesa encontrada para este CNPJ")
@@ -62,7 +74,6 @@ def historico_despesas(cnpj: str, db: Session = Depends(get_db)):
 @app.get("/api/estatisticas")
 @cache(expire=3600)
 def obter_estatisticas(db: Session = Depends(get_db)):
-    # 1. Total e Média Geral (Usando ORM)
     stats_geral = db.query(
         func.sum(DespesaAgregada.total_despesas).label("total"),
         func.avg(DespesaAgregada.total_despesas).label("media")
@@ -77,6 +88,7 @@ def obter_estatisticas(db: Session = Depends(get_db)):
         ORDER BY total DESC
         LIMIT 5
     """)
+    
     top5 = db.execute(query_top5).mappings().all()
 
     return {
