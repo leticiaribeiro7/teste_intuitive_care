@@ -1,8 +1,6 @@
 from fastapi import FastAPI, HTTPException, Query, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func, text
-from typing import List
-import os
 
 from models import DespesaAgregada, Operadora, DespesaConsolidada
 from db.db_setup import engine
@@ -79,7 +77,7 @@ def obter_estatisticas(db: Session = Depends(get_db)):
         func.avg(DespesaAgregada.total_despesas).label("media")
     ).first()
 
-    # 2. Top 5 Operadoras 
+    # Top 5 Operadoras 
     query_top5 = text("""
         SELECT o.razao_social, SUM(d.total_despesas) as total
         FROM despesas_agregadas d

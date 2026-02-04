@@ -4,12 +4,12 @@ import OperadoraDetalhe from '../views/OperadoraDetalhe.vue'
 
 
 const routes = [
-{ path: '/', component: OperadorasList },
-{ path: '/operadoras/:cnpj/despesas', component: OperadoraDetalhe }
+    { path: '/', component: OperadorasList },
+    { path: '/operadoras/:cnpj/despesas', component: OperadoraDetalhe }
 ]
 
 
 export default createRouter({
-history: createWebHistory(),
-routes
+    history: createWebHistory(),
+    routes
 })
