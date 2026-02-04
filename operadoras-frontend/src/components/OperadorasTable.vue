@@ -27,7 +27,7 @@
     <p v-else>Nenhuma operadora encontrada.</p>
 
     <!-- PAGINAÇÃO -->
-    <div v-if="totalPages > 1" style="margin-top: 16px">
+    <div class="pagination" v-if="totalPages > 1">
       <button
         :disabled="page === 1"
         @click="$emit('page-change', page - 1)"
