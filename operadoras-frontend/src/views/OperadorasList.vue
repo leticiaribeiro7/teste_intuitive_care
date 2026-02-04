@@ -1,41 +1,30 @@
-<template>
-<input v-model="search" placeholder="Buscar razão social ou CNPJ" />
-
-
-<OperadorasTable :operadoras="store.lista" />
-
-
-<DespesasChart :chartData="chartData" />
-</template>
-
-
 <script setup>
-import { ref, watch, onMounted, computed } from 'vue'
+import { onMounted } from 'vue'
 import { useOperadorasStore } from '../stores/operadorasStore'
 import OperadorasTable from '../components/OperadorasTable.vue'
-import DespesasChart from '../components/DespesasChart.vue'
-
 
 const store = useOperadorasStore()
-const search = ref('')
-
 
 onMounted(() => {
-store.fetchOperadoras({ page: 1 })
-store.fetchDespesasUF()
+  store.fetchOperadoras(1)
 })
 
-
-watch(search, (value) => {
-store.fetchOperadoras({ search: value, page: 1 })
-})
-
-
-const chartData = computed(() => ({
-labels: store.despesasUF.map(d => d.uf),
-datasets: [{
-label: 'Despesas por UF',
-data: store.despesasUF.map(d => d.total)
-}]
-}))
+function changePage(newPage) {
+  store.fetchOperadoras(newPage)
+}
 </script>
+
+<template>
+  <h2>Operadoras</h2>
+
+  <p v-if="store.loading">Carregando...</p>
+  <p v-if="store.error">{{ store.error }}</p>
+
+  <OperadorasTable
+    v-if="!store.loading"
+    :operadoras="store.lista"
+    :page="store.page"
+    :totalPages="store.totalPages"
+    @page-change="changePage"
+  />
+</template>
