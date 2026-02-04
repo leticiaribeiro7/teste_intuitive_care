@@ -71,7 +71,7 @@ npm run dev
   * *Despesas com eventos / sinistros*
 
 Toda manipulação e processamento dos dados foi feita usando a biblioteca Pandas devido à sua facilidade no tratamento de dados estruturados como excel e CSV.
-
+A importação dos dados em csv para o banco de dados foi realizada utilizando a biblioteca SQL Alchemy.
 
 ## Decisões técnicas e trade-offs
 

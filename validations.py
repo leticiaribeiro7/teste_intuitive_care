@@ -1,10 +1,5 @@
 import re
 from turtle import pd
-import requests
-
-
-CONSOLIDATED_CSV = "consolidado_despesas.csv"
-
 
 
 def validar_cnpj(cnpj: str) -> bool:

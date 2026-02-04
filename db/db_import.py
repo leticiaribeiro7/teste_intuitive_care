@@ -1,10 +1,10 @@
 import pandas as pd
 import os
-from db_setup import engine
+from db.db_setup import engine
 
 def import_operadoras():
     """Importa o cadastro da ANS tratando os nomes de colunas e datas."""
-    file = 'Relatorio_cadop.csv'
+    file = 'csv/Relatorio_cadop.csv'
     if os.path.exists(file):
         print(f"Importando {file}...")
         df = pd.read_csv(file, sep=';', encoding='utf-8', dtype={'CNPJ': str}) # cnpj convertido pra str
@@ -46,7 +46,7 @@ def import_operadoras():
 
 def import_despesas_consolidadas():
     """Importa o arquivo de despesas brutas."""
-    file = 'consolidado_despesas.csv'
+    file = 'csv/consolidado_despesas.csv'
     if os.path.exists(file):
         print(f"Importando {file}...")
         df = pd.read_csv(file, sep=';', encoding='utf-8', dtype={'CNPJ': str})
@@ -68,7 +68,7 @@ def import_despesas_consolidadas():
 
 def import_despesas_agregadas():
 
-    file = 'despesas_agregadas.csv'
+    file = 'csv/despesas_agregadas.csv'
     if os.path.exists(file):
         print(f"Importando {file}...")
         df = pd.read_csv(file, sep=';', encoding='utf-8', dtype={'CNPJ': str})

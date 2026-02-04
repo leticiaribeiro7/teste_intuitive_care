@@ -5,7 +5,7 @@ from typing import List
 import os
 
 from models import DespesaAgregada, Operadora, DespesaConsolidada
-from db_setup import engine
+from db.db_setup import engine
 
 from fastapi_cache import FastAPICache
 from fastapi_cache.backends.inmemory import InMemoryBackend

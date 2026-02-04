@@ -7,14 +7,14 @@ from io import BytesIO
 import re
 
 from validations import validated_data
-from db_setup import engine, create_database, setup_database
-from db_import import import_operadoras, import_despesas_consolidadas, import_despesas_agregadas
+from db.db_setup import engine, create_database, setup_database
+from db.db_import import import_operadoras, import_despesas_consolidadas, import_despesas_agregadas
 
 # --- CONFIGURAÇÕES ---
 
 BASE_URL = "https://dadosabertos.ans.gov.br/FTP/PDA/demonstracoes_contabeis/"
 CADASTRO_URL = "https://dadosabertos.ans.gov.br/FTP/PDA/operadoras_de_plano_de_saude_ativas/"
-FINAL_CSV = "consolidado_despesas.csv"
+FINAL_CSV = "csv/consolidado_despesas.csv"
 
 
 
@@ -44,6 +44,33 @@ def get_mapeamento_operadoras():
     print(df_cad.head())
     return df_cad
 
+def get_mapeamento_despesas(df, tri_path, padrao):
+    df.columns = [str(c).strip().upper() for c in df.columns]
+                    
+    col_reg = next((c for c in df.columns if 'REG' in c), None)
+    col_valor_inicial = next((c for c in df.columns if 'SALDO_INICIAL' in c), None)
+    col_valor_final = next((c for c in df.columns if 'SALDO_FINAL' in c), None)
+    
+
+    if 'DESCRICAO' in df.columns and col_reg and col_valor_inicial and col_valor_final:
+        # Filtro Regex
+        mask = df['DESCRICAO'].astype(str).str.contains(padrao, case=False, regex=True, na=False)
+        df_filtrado = df[mask].copy()
+        
+
+        df_filtrado[col_reg] = df_filtrado[col_reg].astype(str).str.strip()
+        df_filtrado.rename(columns={col_reg: 'RegistroANS'}, inplace=True)
+    
+        
+        # Cálculo (Saldo Inicial - Saldo Final)
+        df_filtrado['ValorDespesas'] = pd.to_numeric(df_filtrado[col_valor_final], errors='coerce').fillna(0) - pd.to_numeric(df_filtrado[col_valor_inicial], errors='coerce').fillna(0)
+
+        df_filtrado = df_filtrado[df_filtrado['ValorDespesas'] != 0].copy()
+        df_filtrado['Ano'] = tri_path.split('/')[0]
+        df_filtrado['Trimestre'] = tri_path.split('/')[-1].replace('.zip', '')[0]
+
+    return df_filtrado
+
 def download_files(arquivos_alvo):
     df_lista = []
     padrao = r'despesas\s*com\s*eventos\s*/?\s*sinistros'
@@ -58,31 +85,9 @@ def download_files(arquivos_alvo):
                     
                     with z.open(file_name) as f:
                         df = pd.read_csv(f, sep=None, engine='python', encoding='utf-8', on_bad_lines='skip')
-                        
-                    df.columns = [str(c).strip().upper() for c in df.columns]
-                    
-                    col_reg = next((c for c in df.columns if 'REG' in c), None)
-                    col_valor_inicial = next((c for c in df.columns if 'SALDO_INICIAL' in c), None)
-                    col_valor_final = next((c for c in df.columns if 'SALDO_FINAL' in c), None)
-                    
 
-                    if 'DESCRICAO' in df.columns and col_reg and col_valor_inicial and col_valor_final:
-                        # Filtro Regex
-                        mask = df['DESCRICAO'].astype(str).str.contains(padrao, case=False, regex=True, na=False)
-                        df_filtrado = df[mask].copy()
-                        
-
-                        df_filtrado[col_reg] = df_filtrado[col_reg].astype(str).str.strip()
-                        df_filtrado.rename(columns={col_reg: 'RegistroANS'}, inplace=True)
-                    
-                        
-                        # Cálculo (Saldo Inicial - Saldo Final geralmente indica despesa)
-                        df_filtrado['ValorDespesas'] = pd.to_numeric(df_filtrado[col_valor_final], errors='coerce').fillna(0) - pd.to_numeric(df_filtrado[col_valor_inicial], errors='coerce').fillna(0)
-
-                        df_filtrado = df_filtrado[df_filtrado['ValorDespesas'] != 0].copy()
-                        df_filtrado['Ano'] = tri_path.split('/')[0]
-                        df_filtrado['Trimestre'] = tri_path.split('/')[-1].replace('.zip', '')[0]
-
+                        df_filtrado = get_mapeamento_despesas(df, tri_path, padrao)
+                
                         df_lista.append(df_filtrado)
         except Exception as e:
             print(f"Erro ao processar {tri_path}: {e}")
@@ -94,7 +99,7 @@ def identify_trimestre():
     print("-> Identificando trimestres...")
     res = requests.get(BASE_URL)
     soup = BeautifulSoup(res.text, 'html.parser')
-    # Pega pastas de anos
+
     anos = sorted([a['href'] for a in soup.find_all('a', href=True) if re.match(r'^\d{4}/', a['href'])], reverse=True)
 
     arquivos_alvo = []
@@ -140,14 +145,13 @@ def add_new_columns():
 
     df_validado['CNPJ'] = df_validado['CNPJ'].astype(str).str.strip()
 
-    # colunas que quero do df de operadoras
     colunas_interesse = ['CNPJ', 'RegistroANS', 'Modalidade', 'UF'] 
     operadoras_filtrado = operadoras[colunas_interesse]
 
     df_validado = df_validado.merge(operadoras_filtrado, on='CNPJ', how='left')
 
-    # outras colunas inclusas no group by para que todas apareçam no csv final
-    # faz o calculo de total por operadora/UF, calcula a media de cada trimestre e desvio padrao
+    # Outras colunas inclusas no group by para que todas apareçam no csv final
+    # Faz o calculo de total por operadora/UF, calcula a media de cada trimestre e desvio padrao
     df_validado = df_validado.groupby(['RegistroANS',  'RazaoSocial', 'Modalidade', 'UF'], as_index=False)['ValorDespesas'].agg(
         Total_Despesas='sum',
         Media_Trimestral='mean',
@@ -156,10 +160,8 @@ def add_new_columns():
     
     df_validado = df_validado.sort_values(by='Total_Despesas', ascending=False)
 
-    df_validado.to_csv("despesas_agregadas.csv", index=False, sep=';', encoding='utf-8')
+    df_validado.to_csv("csv/despesas_agregadas.csv", index=False, sep=';', encoding='utf-8')
     print(f"\n--- SUCESSO ---\nArquivo despesas_agregadas.csv gerado.")
-
-
 
 
 
